@@ -27,8 +27,8 @@ After installation, the `rhs-flash` command is available:
 
 ```bash
 # List connected programmers
-rhs-flash list
-rhs-flash l --programmer jlink
+rhs-flash
+rhs-flash --programmer jlink
 
 # Flash with auto-detected JLink (first available)
 rhs-flash firmware.hex

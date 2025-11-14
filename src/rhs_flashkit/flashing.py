@@ -1,13 +1,32 @@
 import sys
 import os
 import argparse
+import logging
 
-import pylink
-from pylink import JLink
-
-from .jlink_device_detector import auto_detect_device
 from .constants import SUPPORTED_PROGRAMMERS, DEFAULT_PROGRAMMER, PROGRAMMER_JLINK
-from .list_devices import get_connected_devices, get_first_available_device, print_connected_devices
+from .programmer import Programmer
+from .jlink_programmer import JLinkProgrammer
+
+
+def _get_programmer_class(programmer_type: str):
+    """
+    Get programmer class by type.
+    
+    Args:
+        programmer_type: Type of programmer ('jlink', 'stlink', etc.)
+        
+    Returns:
+        Programmer class
+        
+    Raises:
+        NotImplementedError: If programmer type is not yet implemented
+    """
+    programmer_lower = programmer_type.lower()
+    
+    if programmer_lower == PROGRAMMER_JLINK:
+        return JLinkProgrammer
+    else:
+        raise NotImplementedError(f"Programmer '{programmer_type}' is not yet implemented")
 
 
 def flash_device_by_usb(serial: int = None, fw_file: str = None, mcu: str = None, programmer: str = DEFAULT_PROGRAMMER) -> None:
@@ -28,61 +47,56 @@ def flash_device_by_usb(serial: int = None, fw_file: str = None, mcu: str = None
             f"Currently supported: {', '.join(SUPPORTED_PROGRAMMERS)}"
         )
     
-    if programmer_lower == PROGRAMMER_JLINK:
-        _flash_with_jlink(serial, fw_file, mcu)
-    else:
-        raise NotImplementedError(f"Programmer '{programmer}' is not yet implemented")
-
-
-def _flash_with_jlink(jlink_serial: int = None, fw_file: str = None, mcu: str = None) -> None:
-    """Flash device using JLink programmer."""
-    jlink = pylink.JLink()
+    # Get programmer class
+    programmer_class = _get_programmer_class(programmer_lower)
     
-    # If serial not specified, find first available JLink
-    if jlink_serial is None:
-        print("No serial number specified, searching for connected JLink devices...")
-        device = get_first_available_device(PROGRAMMER_JLINK)
+    # If serial not specified, find first available device
+    if serial is None:
+        print(f"No serial number specified, searching for connected {programmer} devices...")
+        devices = programmer_class.get_available()
         
-        if not device:
-            raise RuntimeError("No JLink devices found. Please connect a JLink or specify serial number.")
+        if not devices:
+            raise RuntimeError(f"No {programmer} devices found. Please connect a {programmer} or specify serial number.")
         
-        jlink_serial = device['serial']
-        print(f"Using JLink with serial: {jlink_serial}")
+        serial = devices[0]['serial']
+        print(f"Using {programmer} with serial: {serial}")
         
-        # Check if multiple devices available
-        all_devices = get_connected_devices(PROGRAMMER_JLINK)
-        if len(all_devices) > 1:
-            print(f"Note: Multiple JLink devices found ({len(all_devices)}). Using first one. Available serials:")
-            for dev in all_devices:
+        if len(devices) > 1:
+            print(f"Note: Multiple {programmer} devices found ({len(devices)}). Using first one. Available serials:")
+            for dev in devices:
                 print(f"  - {dev['serial']}")
     
-    jlink.open(serial_no=jlink_serial)
-
-    if jlink.opened():
-        jlink.set_tif(pylink.enums.JLinkInterfaces.SWD)
+    # Create programmer instance
+    prog = programmer_class(serial=serial)
+    
+    try:
+        # Check if programmer is available
+        if not prog.probe():
+            raise RuntimeError(f"{programmer} with serial {serial} not found or not accessible")
         
-        # If MCU not specified, auto-detect it
-        if not mcu:
-            mcu = auto_detect_device(jlink, verbose=True)
-            if mcu:
-                print(f"Auto-detected MCU: {mcu}")
-                # Reconnect with specific device
-                jlink.close()
-                jlink.open(serial_no=jlink_serial)
-                jlink.set_tif(pylink.enums.JLinkInterfaces.SWD)
-            else:
-                print("::error::Could not auto-detect MCU")
-                jlink.close()
-                sys.exit(1)
+        print(f"Connecting to device...")
+        
+        # Connect to device (with or without MCU specification)
+        if not prog.connect_target(mcu=mcu):
+            raise RuntimeError(f"Failed to connect to device")
+        
+        print(f"Connected to: {prog.get_target_mcu()}")
+        
+        # Flash firmware
+        print(f"Flashing {fw_file}...")
+        if not prog.flash_target(fw_file, do_verify=True):
+            raise RuntimeError("Flash operation failed")
+        
+        print("Flash completed successfully!")
+        
+        # Reset device
+        print("Resetting device...")
+        prog.reset_target(halt=False)
+        
+    finally:
+        # Ensure cleanup
+        prog.disconnect_target()
 
-        jlink.connect(mcu)
-
-        print("Flashing device...")
-        result = jlink.flash_file(fw_file, 0x08000000)
-        print(f"Flash result: {result}")
-        jlink.reset(halt=False)
-
-    jlink.close()
 
 def main():
     """Main CLI entry point."""
@@ -91,9 +105,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # List connected programmers
-  rhs-flash list
-  rhs-flash l --programmer jlink
+  # List connected programmers (no firmware file specified)
+  rhs-flash
+  rhs-flash --programmer jlink
   
   # Flash with auto-detected JLink (first available)
   rhs-flash firmware.hex
@@ -110,9 +124,11 @@ Examples:
     )
     
     parser.add_argument(
-        "command_or_firmware",
+        "firmware_file",
         type=str,
-        help="Command ('list' or 'l' to list devices) or path to firmware file (.hex or .bin)"
+        nargs='?',
+        default=None,
+        help="Path to firmware file (.hex or .bin). If not specified, lists connected devices."
     )
     
     parser.add_argument(
@@ -140,16 +156,17 @@ Examples:
     args = parser.parse_args()
     
     try:
-        # Check if command is 'list' or 'l'
-        if args.command_or_firmware.lower() in ['list', 'l']:
-            print_connected_devices(args.programmer)
+        # If no firmware file specified, list connected devices
+        if args.firmware_file is None:
+            programmer_class = _get_programmer_class(args.programmer)
+            programmer_class.get_available()
             return
         
         # Otherwise treat as firmware file
-        fw_file = os.path.abspath(args.command_or_firmware)
+        fw_file = os.path.abspath(args.firmware_file)
         if not os.path.exists(fw_file):
             print(f"Error: Firmware file not found: {fw_file}")
-            print(f"If you meant to list devices, use: rhs-flash list")
+            print(f"To list connected devices, run: rhs-flash")
             sys.exit(1)
         
         print(f"Programmer: {args.programmer}")
