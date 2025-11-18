@@ -16,34 +16,21 @@ def flash_device_by_usb(prog: Programmer, fw_file: str, mcu: str = None) -> None
         prog: Programmer instance
         fw_file: Path to firmware file
         mcu: MCU name (optional, will auto-detect if not provided)
+    
+    Note:
+        Verification and reset are enabled by default.
     """
-    try:
-        # Check if programmer is available
-        if not prog.probe():
-            raise RuntimeError(f"Programmer not found or not accessible")
-        
-        print(f"Connecting to device...")
-        
-        # Connect to device (with or without MCU specification)
-        if not prog.connect_target(mcu=mcu):
-            raise RuntimeError(f"Failed to connect to device")
-        
-        print(f"Connected to: {prog.get_target_mcu()}")
-        
-        # Flash firmware
-        print(f"Flashing {fw_file}...")
-        if not prog.flash_target(fw_file, do_verify=True):
-            raise RuntimeError("Flash operation failed")
-        
-        print("Flash completed successfully!")
-        
-        # Reset device
-        print("Resetting device...")
-        prog.reset_target(halt=False)
-        
-    finally:
-        # Ensure cleanup
-        prog.disconnect_target()
+    # Check if programmer is available
+    if not prog.probe():
+        raise RuntimeError(f"Programmer not found or not accessible")
+    
+    print(f"Flashing {fw_file}...")
+    
+    # Flash firmware (will auto-connect, verify, flash, reset, and disconnect)
+    if not prog.flash(fw_file, mcu=mcu):
+        raise RuntimeError("Flash operation failed")
+    
+    print("Flash completed successfully!")
 
 
 def main():

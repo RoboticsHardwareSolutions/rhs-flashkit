@@ -83,13 +83,16 @@ class Programmer(ABC):
         self.logger = logging.getLogger(f"{self.__class__.__name__}")
 
     @abstractmethod
-    def flash_target(self, file_path: str, do_verify: bool = True) -> bool:
+    def flash(self, file_path: str, mcu: Optional[str] = None, do_verify: bool = True, reset: bool = True) -> bool:
         """
         Flash firmware to the device.
+        Automatically connects to target if not already connected.
         
         Args:
             file_path: Path to firmware file
+            mcu: MCU name (optional, will auto-detect if not provided)
             do_verify: Whether to verify the flash operation
+            reset: Whether to reset device after flashing (default: True)
             
         Returns:
             True if flash was successful, False otherwise
@@ -107,25 +110,7 @@ class Programmer(ABC):
         pass
 
     @abstractmethod
-    def connect_target(self, mcu: Optional[str] = None) -> bool:
-        """
-        Connect to the target device.
-        
-        Args:
-            mcu: MCU name (optional, can be auto-detected)
-            
-        Returns:
-            True if connection successful, False otherwise
-        """
-        pass
-
-    @abstractmethod
-    def disconnect_target(self):
-        """Disconnect from the target device."""
-        pass
-
-    @abstractmethod
-    def reset_target(self, halt: bool = False):
+    def reset(self, halt: bool = False):
         """
         Reset the target device.
         
@@ -135,12 +120,9 @@ class Programmer(ABC):
         pass
 
     @abstractmethod
-    def detect_target(self, verbose: bool = True) -> Optional[str]:
+    def detect_target(self) -> Optional[str]:
         """
         Detect connected MCU device.
-        
-        Args:
-            verbose: Whether to print detection progress
             
         Returns:
             Device name or None if detection failed
@@ -199,7 +181,8 @@ class Programmer(ABC):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit - ensure disconnection."""
-        self.disconnect_target()
+        if hasattr(self, '_disconnect_target'):
+            self._disconnect_target()
 
     def __repr__(self):
         """String representation of the programmer."""

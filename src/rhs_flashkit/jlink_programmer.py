@@ -10,6 +10,9 @@ import pylink
 from typing import Optional, List, Dict, Any
 from .programmer import Programmer, DBGMCU_IDCODE_ADDRESSES, DEVICE_ID_MAP, DEFAULT_MCU_MAP
 
+# Configure default logging level for JLinkProgrammer
+logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
+
 
 class JLinkProgrammer(Programmer):
     """JLink programmer implementation."""
@@ -36,22 +39,27 @@ class JLinkProgrammer(Programmer):
             self._serial = serial
             print(f"JLink with serial {serial} is available")
 
-    def flash_target(self, file_path: str, do_verify: bool = True) -> bool:
+    def flash(self, file_path: str, mcu: Optional[str] = None, do_verify: bool = True, reset: bool = True) -> bool:
         """
         Flash firmware to the device using JLink.
+        Automatically connects to target if not already connected.
         
         Args:
             file_path: Path to firmware file (.hex or .bin)
+            mcu: MCU name (optional, will auto-detect if not provided)
             do_verify: Whether to verify the flash operation
+            reset: Whether to reset device after flashing (default: True)
             
         Returns:
             True if flash was successful, False otherwise
         """
-        if not self._jlink.opened():
-            self.logger.error("Not connected to device. Call connect_target() first.")
-            return False
-
         try:
+            # Connect to target if not already connected
+            if not self._jlink.opened():
+                if not self._connect_target(mcu=mcu):
+                    self.logger.error("Failed to connect to device")
+                    return False
+            
             self.logger.info(f"Flashing {file_path}...")
             
             # Halt the core before flashing
@@ -72,11 +80,19 @@ class JLinkProgrammer(Programmer):
                 self.logger.info("Verifying flash...")
                 # JLink flash_file already includes verification by default
             
+            # Reset device if requested
+            if reset:
+                self.logger.info("Resetting device...")
+                self.reset(halt=False)
+            
             return True
             
         except Exception as e:
             self.logger.error(f"Flash error: {e}")
             return False
+        finally:
+            # Disconnect after flashing
+            self._disconnect_target()
 
     def probe(self) -> bool:
         """
@@ -98,9 +114,9 @@ class JLinkProgrammer(Programmer):
             self.logger.error(f"Probe error: {e}")
             return False
 
-    def connect_target(self, mcu: Optional[str] = None) -> bool:
+    def _connect_target(self, mcu: Optional[str] = None) -> bool:
         """
-        Connect to the target device via JLink.
+        Connect to the target device via JLink (private method).
         
         Args:
             mcu: MCU name (optional, will auto-detect if not provided)
@@ -132,7 +148,7 @@ class JLinkProgrammer(Programmer):
                 self._mcu = mcu
             else:
                 self.logger.info("Auto-detecting MCU...")
-                detected_mcu = self.detect_target(verbose=True)
+                detected_mcu = self.detect_target()
                 
                 if detected_mcu:
                     self.logger.info(f"Detected MCU: {detected_mcu}")
@@ -157,14 +173,14 @@ class JLinkProgrammer(Programmer):
             self.logger.error(f"Connection error: {e}")
             return False
 
-    def disconnect_target(self):
-        """Disconnect from the target device and close JLink."""
+    def _disconnect_target(self):
+        """Disconnect from the target device and close JLink (private method)."""
         if self._jlink.opened():
             self.logger.info("Disconnecting from device")
             self._jlink.close()
         self._mcu = None
 
-    def reset_target(self, halt: bool = False):
+    def reset(self, halt: bool = False):
         """
         Reset the target device.
         
@@ -214,24 +230,6 @@ class JLinkProgrammer(Programmer):
             print(f"Warning: Could not enumerate JLink devices: {e}")
             return []
 
-    def get_target_mcu(self) -> Optional[str]:
-        """
-        Get the connected MCU name.
-        
-        Returns:
-            MCU name or None if not connected
-        """
-        return self._mcu
-
-    def is_connected(self) -> bool:
-        """
-        Check if programmer is connected to target.
-        
-        Returns:
-            True if connected, False otherwise
-        """
-        return self._jlink.opened()
-
     def read_target_memory(self, address: int, num_bytes: int) -> Optional[list]:
         """
         Read memory from target device.
@@ -253,14 +251,11 @@ class JLinkProgrammer(Programmer):
             self.logger.error(f"Memory read error: {e}")
             return None
 
-    def detect_target(self, verbose: bool = True) -> Optional[str]:
+    def detect_target(self) -> Optional[str]:
         """
         Detect STM32 device by reading DBGMCU_IDCODE register.
         
         Tries to connect with different Cortex-M cores and read device ID.
-        
-        Args:
-            verbose: Whether to print detection progress
             
         Returns:
             Device name like 'STM32F765ZG' or 'STM32F103RE', or None if detection failed
@@ -271,8 +266,7 @@ class JLinkProgrammer(Programmer):
         
         for core in ['Cortex-M7', 'Cortex-M4', 'Cortex-M3', 'Cortex-M0']:
             try:
-                if verbose:
-                    self.logger.debug(f"Trying to connect with {core}...")
+                self.logger.debug(f"Trying to connect with {core}...")
                 self._jlink.connect(core, verbose=False)
                 
                 # Try to read IDCODE to verify connection works
@@ -280,20 +274,17 @@ class JLinkProgrammer(Programmer):
                     test_read = self._jlink.memory_read32(0xE0042000, 1)[0]
                     if test_read != 0 and test_read != 0xFFFFFFFF:
                         connected_core = core
-                        if verbose:
-                            self.logger.info(f"Successfully connected with {core}")
+                        self.logger.info(f"Successfully connected with {core}")
                         break
                 except:
                     pass  # Connection didn't work, try next core
                     
             except Exception as e:
-                if verbose:
-                    self.logger.debug(f"Failed to connect with {core}: {e}")
+                self.logger.debug(f"Failed to connect with {core}: {e}")
                 continue
         
         if not connected_core:
-            if verbose:
-                self.logger.error("Could not connect with any Cortex-M core")
+            self.logger.error("Could not connect with any Cortex-M core")
             return None
 
         try:
@@ -305,34 +296,28 @@ class JLinkProgrammer(Programmer):
                 try:
                     idcode = self._jlink.memory_read32(addr, 1)[0]
                     if idcode != 0 and idcode != 0xFFFFFFFF:
-                        if verbose:
-                            print(f"✓ Read IDCODE from 0x{addr:08X} ({desc})")
+                        self.logger.info(f"✓ Read IDCODE from 0x{addr:08X} ({desc})")
                         found_addr = addr
                         break
                     else:
-                        if verbose:
-                            print(f"✗ Address 0x{addr:08X} returned invalid IDCODE (0x{idcode:08X}) - skipping {desc}")
+                        self.logger.debug(f"✗ Address 0x{addr:08X} returned invalid IDCODE (0x{idcode:08X}) - skipping {desc}")
                 except Exception as e:
-                    if verbose:
-                        print(f"✗ Cannot read from 0x{addr:08X} ({desc}): {e}")
+                    self.logger.debug(f"✗ Cannot read from 0x{addr:08X} ({desc}): {e}")
                     continue
             
             if idcode == 0 or idcode == 0xFFFFFFFF or found_addr is None:
-                if verbose:
-                    print("::error::Could not read valid IDCODE from any known address")
+                self.logger.error("Could not read valid IDCODE from any known address")
                 return None
             
             # Extract device and revision IDs
             dev_id = (idcode >> 0) & 0xFFF
             rev_id = (idcode >> 16) & 0xFFFF
             
-            if verbose:
-                print(f"Detected Device ID: 0x{dev_id:03X}, Revision ID: 0x{rev_id:04X}")
+            self.logger.info(f"Detected Device ID: 0x{dev_id:03X}, Revision ID: 0x{rev_id:04X}")
             
             # Get device family name
             device_family = DEVICE_ID_MAP.get(dev_id, f"Unknown (0x{dev_id:03X})")
-            if verbose:
-                print(f"Device Family: {device_family}")
+            self.logger.info(f"Device Family: {device_family}")
             
             # Get default MCU name for this device ID
             mcu_name = DEFAULT_MCU_MAP.get(dev_id)
@@ -344,6 +329,5 @@ class JLinkProgrammer(Programmer):
             return mcu_name
             
         except Exception as e:
-            if verbose:
-                print(f"Warning: Could not detect device automatically: {e}")
+            self.logger.warning(f"Could not detect device automatically: {e}")
             return None
