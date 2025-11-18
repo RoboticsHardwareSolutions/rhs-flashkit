@@ -8,31 +8,6 @@ from .programmer import Programmer
 from .jlink_programmer import JLinkProgrammer
 
 
-def flash_device_by_usb(prog: Programmer, fw_file: str, mcu: str = None) -> None:
-    """
-    Flash a device using specified programmer.
-    
-    Args:
-        prog: Programmer instance
-        fw_file: Path to firmware file
-        mcu: MCU name (optional, will auto-detect if not provided)
-    
-    Note:
-        Verification and reset are enabled by default.
-    """
-    # Check if programmer is available
-    if not prog.probe():
-        raise RuntimeError(f"Programmer not found or not accessible")
-    
-    print(f"Flashing {fw_file}...")
-    
-    # Flash firmware (will auto-connect, verify, flash, reset, and disconnect)
-    if not prog.flash(fw_file, mcu=mcu):
-        raise RuntimeError("Flash operation failed")
-    
-    print("Flash completed successfully!")
-
-
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -116,7 +91,16 @@ Examples:
             print(f"MCU: {args.mcu}")
         print()
         
-        flash_device_by_usb(prog, fw_file, args.mcu)
+        # Check if programmer is available
+        if not prog.probe():
+            raise RuntimeError(f"Programmer not found or not accessible")
+        
+        print(f"Flashing {fw_file}...")
+        
+        # Flash firmware (will auto-connect, verify, flash, reset, and disconnect)
+        if not prog.flash(fw_file, mcu=args.mcu):
+            raise RuntimeError("Flash operation failed")
+        
         print("\n✓ Flashing completed successfully!")
         
     except Exception as e:
