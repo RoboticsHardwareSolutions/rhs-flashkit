@@ -5,6 +5,7 @@ This module provides JLink programmer implementation based on the Programmer abs
 Uses pylink-square library for communication with SEGGER J-Link devices.
 """
 
+import logging
 import pylink
 from typing import Optional, List, Dict, Any
 from .programmer import Programmer, DBGMCU_IDCODE_ADDRESSES, DEVICE_ID_MAP, DEFAULT_MCU_MAP
@@ -18,11 +19,22 @@ class JLinkProgrammer(Programmer):
         Initialize JLink programmer.
         
         Args:
-            serial: JLink serial number (optional)
+            serial: JLink serial number (optional, will auto-detect first available if not provided)
         """
         super().__init__(serial)
         self._jlink = pylink.JLink()
         self._mcu = None
+        
+        # If no serial specified, find first available device
+        if serial is None:
+            devices = self._get_available_devices()
+            if not devices:
+                raise RuntimeError("No JLink devices found. Please connect a JLink.")
+            self._serial = devices[0]['serial']
+            print(f"Auto-detected JLink with serial: {self._serial}")
+        else:
+            self._serial = serial
+            print(f"JLink with serial {serial} is available")
 
     def flash_target(self, file_path: str, do_verify: bool = True) -> bool:
         """
@@ -41,6 +53,11 @@ class JLinkProgrammer(Programmer):
 
         try:
             self.logger.info(f"Flashing {file_path}...")
+            
+            # Halt the core before flashing
+            if not self._jlink.halted():
+                self._jlink.halt()
+                self.logger.debug("Core halted for flashing")
             
             # Flash at STM32 default flash base address
             result = self._jlink.flash_file(file_path, 0x08000000)
@@ -115,12 +132,19 @@ class JLinkProgrammer(Programmer):
                 self._mcu = mcu
             else:
                 self.logger.info("Auto-detecting MCU...")
-                detected_mcu = self.detect_target(verbose=False)
+                detected_mcu = self.detect_target(verbose=True)
                 
                 if detected_mcu:
                     self.logger.info(f"Detected MCU: {detected_mcu}")
                     self._mcu = detected_mcu
-                    self._jlink.connect(detected_mcu)
+                    # Disconnect and reconnect with proper device name for correct flash programming
+                    if self._jlink.connected():
+                        try:
+                            # Set device and reconnect for proper configuration
+                            self._jlink.exec_command(f"device = {detected_mcu}")
+                            self.logger.debug(f"Set device to {detected_mcu}")
+                        except Exception as e:
+                            self.logger.warning(f"Could not set device: {e}, will use generic connection")
                 else:
                     self.logger.warning("Could not auto-detect MCU, trying generic Cortex-M4")
                     self._mcu = "Cortex-M4"
@@ -158,9 +182,9 @@ class JLinkProgrammer(Programmer):
             self.logger.error(f"Reset error: {e}")
 
     @staticmethod
-    def get_available() -> List[Dict[str, Any]]:
+    def _get_available_devices() -> List[Dict[str, Any]]:
         """
-        Get list of all available JLink devices and print them.
+        Get list of all available JLink devices (private method).
         
         Returns:
             List of device information dictionaries:
@@ -184,17 +208,6 @@ class JLinkProgrammer(Programmer):
             
             if jlink.opened():
                 jlink.close()
-            
-            # Print devices
-            if not devices:
-                print("No JLink devices found")
-            else:
-                print(f"Found {len(devices)} JLink device(s):")
-                for i, device in enumerate(devices, 1):
-                    print(f"  {i}. Serial: {device['serial']}", end="")
-                    if 'product' in device:
-                        print(f" - {device['product']}", end="")
-                    print()
                 
             return devices
         except Exception as e:
@@ -244,7 +257,7 @@ class JLinkProgrammer(Programmer):
         """
         Detect STM32 device by reading DBGMCU_IDCODE register.
         
-        If not connected, tries to connect with different Cortex-M cores first.
+        Tries to connect with different Cortex-M cores and read device ID.
         
         Args:
             verbose: Whether to print detection progress
@@ -252,28 +265,36 @@ class JLinkProgrammer(Programmer):
         Returns:
             Device name like 'STM32F765ZG' or 'STM32F103RE', or None if detection failed
         """
-        # If not connected, try to establish connection with different cores
-        if not self._jlink.opened():
-            if verbose:
-                self.logger.info("Not connected, attempting to auto-detect device...")
-            
-            # Try to connect with different Cortex-M cores
-            # Order: M0 -> M3 -> M4 -> M7 (from simplest to most complex)
-            connected = False
-            for core in ['Cortex-M0', 'Cortex-M3', 'Cortex-M4', 'Cortex-M7']:
-                try:
-                    self._jlink.connect(core, verbose=False)
-                    connected = True
-                    if verbose:
-                        self.logger.info(f"Connected using {core}")
-                    break
-                except:
-                    continue
-            
-            if not connected:
+        # Try to connect with different Cortex-M cores
+        # Order: M7 -> M4 -> M3 -> M0 (from most complex to simplest, as modern MCUs are more common)
+        connected_core = None
+        
+        for core in ['Cortex-M7', 'Cortex-M4', 'Cortex-M3', 'Cortex-M0']:
+            try:
                 if verbose:
-                    self.logger.error("Could not connect with any Cortex-M core")
-                return None
+                    self.logger.debug(f"Trying to connect with {core}...")
+                self._jlink.connect(core, verbose=False)
+                
+                # Try to read IDCODE to verify connection works
+                try:
+                    test_read = self._jlink.memory_read32(0xE0042000, 1)[0]
+                    if test_read != 0 and test_read != 0xFFFFFFFF:
+                        connected_core = core
+                        if verbose:
+                            self.logger.info(f"Successfully connected with {core}")
+                        break
+                except:
+                    pass  # Connection didn't work, try next core
+                    
+            except Exception as e:
+                if verbose:
+                    self.logger.debug(f"Failed to connect with {core}: {e}")
+                continue
+        
+        if not connected_core:
+            if verbose:
+                self.logger.error("Could not connect with any Cortex-M core")
+            return None
 
         try:
             # Try to read device ID from different addresses

@@ -148,37 +148,6 @@ class Programmer(ABC):
         pass
 
     @staticmethod
-    @abstractmethod
-    def get_available() -> List[Dict[str, Any]]:
-        """
-        Get list of all available devices for this programmer type.
-        
-        Returns:
-            List of device information dictionaries.
-            Each dict should contain at least:
-            - serial: Device serial number
-            - type: Programmer type (e.g., 'jlink', 'stlink')
-        """
-        pass
-    
-    @classmethod
-    def find_device_by_serial(cls, serial: int) -> Optional[Dict[str, Any]]:
-        """
-        Find a device by its serial number.
-        
-        Args:
-            serial: Device serial number to search for
-            
-        Returns:
-            Device information dictionary or None if not found
-        """
-        devices = cls.get_available()
-        for device in devices:
-            if device['serial'] == serial:
-                return device
-        return None
-
-    @staticmethod
     def get_target_info(dev_id: int) -> dict:
         """
         Get device information by device ID.

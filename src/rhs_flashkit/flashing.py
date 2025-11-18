@@ -8,71 +8,19 @@ from .programmer import Programmer
 from .jlink_programmer import JLinkProgrammer
 
 
-def _get_programmer_class(programmer_type: str):
-    """
-    Get programmer class by type.
-    
-    Args:
-        programmer_type: Type of programmer ('jlink', 'stlink', etc.)
-        
-    Returns:
-        Programmer class
-        
-    Raises:
-        NotImplementedError: If programmer type is not yet implemented
-    """
-    programmer_lower = programmer_type.lower()
-    
-    if programmer_lower == PROGRAMMER_JLINK:
-        return JLinkProgrammer
-    else:
-        raise NotImplementedError(f"Programmer '{programmer_type}' is not yet implemented")
-
-
-def flash_device_by_usb(serial: int = None, fw_file: str = None, mcu: str = None, programmer: str = DEFAULT_PROGRAMMER) -> None:
+def flash_device_by_usb(prog: Programmer, fw_file: str, mcu: str = None) -> None:
     """
     Flash a device using specified programmer.
     
     Args:
-        serial: Programmer serial number (optional, will auto-detect first available)
+        prog: Programmer instance
         fw_file: Path to firmware file
         mcu: MCU name (optional, will auto-detect if not provided)
-        programmer: Programmer type (default: 'jlink')
     """
-    programmer_lower = programmer.lower()
-    
-    if programmer_lower not in SUPPORTED_PROGRAMMERS:
-        raise ValueError(
-            f"Unsupported programmer: {programmer}. "
-            f"Currently supported: {', '.join(SUPPORTED_PROGRAMMERS)}"
-        )
-    
-    # Get programmer class
-    programmer_class = _get_programmer_class(programmer_lower)
-    
-    # If serial not specified, find first available device
-    if serial is None:
-        print(f"No serial number specified, searching for connected {programmer} devices...")
-        devices = programmer_class.get_available()
-        
-        if not devices:
-            raise RuntimeError(f"No {programmer} devices found. Please connect a {programmer} or specify serial number.")
-        
-        serial = devices[0]['serial']
-        print(f"Using {programmer} with serial: {serial}")
-        
-        if len(devices) > 1:
-            print(f"Note: Multiple {programmer} devices found ({len(devices)}). Using first one. Available serials:")
-            for dev in devices:
-                print(f"  - {dev['serial']}")
-    
-    # Create programmer instance
-    prog = programmer_class(serial=serial)
-    
     try:
         # Check if programmer is available
         if not prog.probe():
-            raise RuntimeError(f"{programmer} with serial {serial} not found or not accessible")
+            raise RuntimeError(f"Programmer not found or not accessible")
         
         print(f"Connecting to device...")
         
@@ -156,13 +104,17 @@ Examples:
     args = parser.parse_args()
     
     try:
-        # If no firmware file specified, list connected devices
+        # Create programmer instance
+        if args.programmer.lower() == PROGRAMMER_JLINK:
+            prog = JLinkProgrammer(serial=args.serial)
+        else:
+            raise NotImplementedError(f"Programmer '{args.programmer}' is not yet implemented")
+        
+        # If no firmware file specified, just list devices and exit
         if args.firmware_file is None:
-            programmer_class = _get_programmer_class(args.programmer)
-            programmer_class.get_available()
             return
         
-        # Otherwise treat as firmware file
+        # Otherwise flash firmware
         fw_file = os.path.abspath(args.firmware_file)
         if not os.path.exists(fw_file):
             print(f"Error: Firmware file not found: {fw_file}")
@@ -177,7 +129,7 @@ Examples:
             print(f"MCU: {args.mcu}")
         print()
         
-        flash_device_by_usb(args.serial, fw_file, args.mcu, args.programmer)
+        flash_device_by_usb(prog, fw_file, args.mcu)
         print("\n✓ Flashing completed successfully!")
         
     except Exception as e:
