@@ -1,91 +1,103 @@
-"""Example usage of rhs-flashkit."""
+"""Example usage of rhs-flashkit - OOP API."""
 
-from rhs_flashkit import (
-    flash_device_by_usb, 
-    auto_detect_device, 
-    get_device_info, 
-    get_connected_devices,
-    get_first_available_device,
-    find_device_by_serial
-)
-import pylink
+from rhs_flashkit import JLinkProgrammer
 
 
-def example_flash():
-    """Example: Flash device with auto-detection."""
+def example_flash_simple():
+    """Example: Flash device with minimal code."""
     firmware_file = "path/to/firmware.hex"
     
     # Flash with auto-detected JLink (first available)
-    flash_device_by_usb(fw_file=firmware_file)
-    
-    # Or with specific serial number
+    prog = JLinkProgrammer()
+    prog.flash(firmware_file)
+
+
+def example_flash_with_serial():
+    """Example: Flash with specific JLink serial number."""
+    firmware_file = "path/to/firmware.hex"
     serial_number = 123456789
-    flash_device_by_usb(serial=serial_number, fw_file=firmware_file)
     
-    # Or specify programmer explicitly
-    flash_device_by_usb(serial=serial_number, fw_file=firmware_file, programmer="jlink")
+    prog = JLinkProgrammer(serial=serial_number)
+    prog.flash(firmware_file)
+
+
+def example_flash_with_mcu():
+    """Example: Flash with specific MCU specified."""
+    firmware_file = "path/to/firmware.hex"
     
-    # Or with specific MCU
-    flash_device_by_usb(serial=serial_number, fw_file=firmware_file, mcu="STM32F765ZG", programmer="jlink")
+    prog = JLinkProgrammer()
+    prog.flash(firmware_file, mcu="STM32F765ZG")
 
 
-def example_detect():
-    """Example: Detect connected device."""
-    serial_number = 123456789  # Your programmer serial number
+def example_flash_no_reset():
+    """Example: Flash without reset after programming."""
+    firmware_file = "path/to/firmware.hex"
     
-    jlink = pylink.JLink()
-    jlink.open(serial_no=serial_number)
-    jlink.set_tif(pylink.enums.JLinkInterfaces.SWD)
+    prog = JLinkProgrammer()
+    prog.flash(firmware_file, reset=False)
+
+
+def example_detect_device():
+    """Example: Detect connected MCU device."""
+    prog = JLinkProgrammer()
     
-    # Auto-detect device
-    mcu = auto_detect_device(jlink, verbose=True)
-    if mcu:
-        print(f"Detected MCU: {mcu}")
+    # Detect device (requires connection to programmer)
+    if prog.probe():
+        detected = prog.detect_target()
+        if detected:
+            print(f"Detected device: {detected}")
+        else:
+            print("Could not detect device")
+
+
+def example_reset_device():
+    """Example: Reset device after flashing."""
+    firmware_file = "path/to/firmware.hex"
     
-    jlink.close()
-
-
-def example_device_info():
-    """Example: Get device information by ID."""
-    # STM32F765/767 device ID
-    info = get_device_info(0x451)
-    print(f"Device Family: {info['family']}")
-    print(f"Default MCU: {info['default_mcu']}")
-
-
-def example_list_jlinks():
-    """Example: List all connected JLink devices."""
-    devices = get_connected_devices('jlink')
-    if devices:
-        print(f"Found {len(devices)} JLink device(s):")
-        for device in devices:
-            print(f"  Serial: {device['serial']}")
-            if 'product' in device:
-                print(f"    Product: {device['product']}")
-    else:
-        print("No JLink devices found")
-
-
-def example_find_device():
-    """Example: Find specific device and get first available."""
-    # Get first available device
-    device = get_first_available_device('jlink')
-    if device:
-        print(f"First available device: {device['serial']}")
+    prog = JLinkProgrammer()
     
-    # Find specific device by serial
-    serial = 123456789
-    device = find_device_by_serial(serial, 'jlink')
-    if device:
-        print(f"Found device with serial {serial}")
-    else:
-        print(f"Device with serial {serial} not found")
+    # Flash without auto-reset
+    if prog.flash(firmware_file, reset=False):
+        print("Flash successful, performing custom reset...")
+        # Do something else here
+        prog.reset(halt=False)
+
+
+def example_read_memory():
+    """Example: Read memory from device."""
+    prog = JLinkProgrammer()
+    
+    # Note: Need to connect manually for memory operations
+    # (flash() handles connection automatically)
+    if hasattr(prog, '_connect_target'):
+        prog._connect_target()
+        data = prog.read_target_memory(0x08000000, 16)
+        if data:
+            hex_str = " ".join([f"{b:02X}" for b in data])
+            print(f"Memory at 0x08000000: {hex_str}")
+        prog._disconnect_target()
 
 
 if __name__ == "__main__":
     # Uncomment the example you want to run
-    # example_flash()
-    # example_detect()
-    # example_device_info()
-    example_list_jlinks()
-    # example_find_device()
+    
+    # Simple usage
+    # example_flash_simple()
+    
+    # With specific serial
+    # example_flash_with_serial()
+    
+    # With specific MCU
+    # example_flash_with_mcu()
+    
+    # Without reset
+    # example_flash_no_reset()
+    
+    # Device detection
+    # example_detect_device()
+    
+    # Custom reset
+    # example_reset_device()
+    
+    # Advanced: Read memory
+    # example_read_memory()

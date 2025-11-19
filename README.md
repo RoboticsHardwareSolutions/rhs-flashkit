@@ -24,9 +24,9 @@ pip install rhs-flashkit
 
 List connected programmers:
 ```bash
-rhs-flash list
-rhs-flash l
-rhs-flash list --programmer jlink
+rhs-flash
+# or specify programmer type
+rhs-flash --programmer jlink
 ```
 
 Flash a device with auto-detected programmer (uses first available JLink):

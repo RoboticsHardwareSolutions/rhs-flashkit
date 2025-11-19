@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2025-11-19
+
+### Changed
+- **Major API Refactoring**: Simplified to pure OOP design with minimal public API
+- Renamed `flash_target()` → `flash()` - now automatically handles connection/disconnection
+- Renamed `reset_target()` → `reset()` for cleaner API
+- Made device enumeration and connection methods private (`_connect_target`, `_disconnect_target`)
+- `flash()` method now accepts `reset` parameter (default: True) to control post-flash reset
+- Enabled INFO and ERROR logging by default
+- Removed `verbose` parameter from `detect_target()` - uses logger levels instead
+
+### Removed
+- Removed `flash_device_by_usb()` function - use `JLinkProgrammer.flash()` directly
+- Removed `connect_target()` and `disconnect_target()` from public API
+- Removed `get_target_mcu()` and `is_connected()` methods
+- Removed `get_connected_devices()`, `print_connected_devices()`, and device finding methods
+- Removed context manager support (`__enter__`/`__exit__`) - no longer needed with auto-disconnect
+- Removed outdated documentation files (ARCHITECTURE.md, PROGRAMMER_API.md)
+
+### Fixed
+- Fixed STM32F1 series flashing issues by properly setting device name via `exec_command`
+- Fixed MCU auto-detection by trying multiple Cortex-M cores (M7→M4→M3→M0)
+- Fixed connection state checking to use proper target connection verification
+
+### Improved
+- Simplified API: only 5 public methods - `__init__`, `flash()`, `probe()`, `reset()`, `detect_target()`
+- `flash()` now handles all connection logic internally
+- Better error handling and logging throughout
+- Cleaner code structure with consistent naming conventions
+
 ## [0.1.0] - 2025-11-10
 
 ### Added
@@ -35,4 +65,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Python >= 3.8
 - pylink-square >= 1.0.0
 
+[0.1.1]: https://github.com/RoboticsHardwareSolutions/rhs-flashkit/releases/tag/v0.1.1
 [0.1.0]: https://github.com/RoboticsHardwareSolutions/rhs-flashkit/releases/tag/v0.1.0
