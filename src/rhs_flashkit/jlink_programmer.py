@@ -6,6 +6,7 @@ Uses pylink-square library for communication with SEGGER J-Link devices.
 """
 
 import logging
+import time
 import pylink
 from typing import Optional, List, Dict, Any
 from .programmer import Programmer, DBGMCU_IDCODE_ADDRESSES, DEVICE_ID_MAP, DEFAULT_MCU_MAP
@@ -31,6 +32,7 @@ class JLinkProgrammer(Programmer):
         super().__init__(serial)
         self._jlink = pylink.JLink()
         self._mcu = None
+        self._rtt_started = False
         
         # If no serial specified, find first available device
         if serial is None:
@@ -451,3 +453,89 @@ class JLinkProgrammer(Programmer):
         except Exception as e:
             self.logger.warning(f"Could not detect device automatically: {e}")
             return None
+
+    def start_rtt(self, rtt_address: Optional[int] = None, delay: float = 1.0) -> bool:
+        """
+        Start Real-Time Transfer (RTT) communication.
+        
+        Args:
+            rtt_address: RTT control block address (None for auto-search)
+            delay: Delay after starting RTT in seconds
+            
+        Returns:
+            True if RTT started successfully, False otherwise
+        """
+        if not self._jlink.opened():
+            self.logger.error("JLink not connected. Call _connect_target() first.")
+            return False
+        
+        try:
+            if rtt_address:
+                self.logger.info(f"Starting RTT at address 0x{rtt_address:08X}")
+                self._jlink.rtt_start(rtt_address)
+            else:
+                self.logger.info("Starting RTT with auto-search")
+                self._jlink.rtt_start()
+            
+            # Give RTT time to initialize
+            time.sleep(delay)
+            self._rtt_started = True
+            self.logger.info("RTT started successfully")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to start RTT: {e}")
+            return False
+    
+    def stop_rtt(self):
+        """Stop RTT communication."""
+        if self._rtt_started:
+            try:
+                self._jlink.rtt_stop()
+                self._rtt_started = False
+                self.logger.info("RTT stopped")
+            except Exception as e:
+                self.logger.warning(f"Error stopping RTT: {e}")
+    
+    def rtt_read(self, buffer_index: int = 0, max_bytes: int = 4096) -> bytes:
+        """
+        Read data from RTT buffer.
+        
+        Args:
+            buffer_index: RTT buffer index (0 for default up buffer)
+            max_bytes: Maximum number of bytes to read
+            
+        Returns:
+            Bytes read from RTT buffer
+        """
+        if not self._rtt_started:
+            self.logger.warning("RTT not started")
+            return b""
+        
+        try:
+            data = self._jlink.rtt_read(buffer_index, max_bytes)
+            return bytes(data) if data else b""
+        except Exception as e:
+            self.logger.error(f"RTT read error: {e}")
+            return b""
+    
+    def rtt_write(self, data: bytes, buffer_index: int = 0) -> int:
+        """
+        Write data to RTT buffer.
+        
+        Args:
+            data: Data to write
+            buffer_index: RTT buffer index (0 for default down buffer)
+            
+        Returns:
+            Number of bytes written
+        """
+        if not self._rtt_started:
+            self.logger.warning("RTT not started")
+            return 0
+        
+        try:
+            return self._jlink.rtt_write(buffer_index, data)
+        except Exception as e:
+            self.logger.error(f"RTT write error: {e}")
+            return 0

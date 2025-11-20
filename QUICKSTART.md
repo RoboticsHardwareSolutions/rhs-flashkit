@@ -46,19 +46,71 @@ rhs-flash firmware.hex --serial 123456789 --mcu STM32F765ZG --programmer jlink
 rhs-flash --help
 ```
 
+### RTT Communication
+
+Connect to device RTT for real-time communication:
+
+```bash
+# Connect with auto-detection
+rhs-jlink-rtt
+
+# Connect to specific device
+rhs-jlink-rtt --serial 123456789 --mcu STM32F765ZG
+
+# Read indefinitely
+rhs-jlink-rtt -t 0
+
+# Send message
+rhs-jlink-rtt --msg "hello\n"
+
+# Get help
+rhs-jlink-rtt --help
+```
+
+See [RTT_GUIDE.md](RTT_GUIDE.md) for detailed RTT documentation.
+
 ### Python API
 
+#### Flashing
+
 ```python
-from rhs_flashkit import flash_device_by_usb
+from rhs_flashkit import JLinkProgrammer
 
-# Flash device (auto-detect first available JLink)
-flash_device_by_usb(fw_file="firmware.hex")
+# Create programmer instance
+prog = JLinkProgrammer(serial=123456789)
 
-# Flash with specific serial number
-flash_device_by_usb(serial=123456789, fw_file="firmware.hex")
+# Flash firmware
+prog.flash("firmware.hex")
 
-# Flash with specific programmer
-flash_device_by_usb(serial=123456789, fw_file="firmware.hex", programmer="jlink")
+# Flash with specific MCU
+prog.flash("firmware.hex", mcu="STM32F765ZG")
+```
+
+#### RTT Communication
+
+```python
+from rhs_flashkit import JLinkProgrammer
+import time
+
+prog = JLinkProgrammer(serial=123456789)
+
+try:
+    # Connect and start RTT
+    prog._connect_target(mcu="STM32F765ZG")
+    prog.start_rtt(delay=1.0)
+    
+    # Send data
+    prog.rtt_write(b"Hello!\n")
+    
+    # Read data
+    data = prog.rtt_read()
+    if data:
+        print(data.decode('utf-8', errors='replace'))
+    
+    # Stop RTT
+    prog.stop_rtt()
+finally:
+    prog._disconnect_target()
 ```
 
 ## Building Package

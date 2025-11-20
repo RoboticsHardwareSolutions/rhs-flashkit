@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-11-20
+
+### Added
+- **RTT (Real-Time Transfer) Support** - Full implementation of SEGGER RTT functionality
+  - New `rhs-jlink-rtt` CLI command for real-time device communication
+  - `start_rtt()` method to initiate RTT communication
+  - `stop_rtt()` method to stop RTT communication
+  - `rtt_read()` method to read data from RTT buffers
+  - `rtt_write()` method to write data to RTT buffers
+  - Support for custom RTT control block addresses
+  - Configurable timeouts and delays
+  
+- **RTT CLI Features**:
+  - Auto-detection of JLink serial and MCU (or specify explicitly)
+  - Configurable read timeout (default 10s, 0 for indefinite)
+  - Send messages to device via `--msg` parameter
+  - Configurable message send delay with `--msg-timeout`
+  - Optional target reset control (`--reset` / `--no-reset`)
+  - Verbose mode for debugging with `-v` flag
+  - Escape sequence support in messages (e.g., `\n`, `\t`)
+  
+- **Documentation**:
+  - Comprehensive RTT_GUIDE.md with examples and troubleshooting
+  - Updated README.md with RTT usage examples
+  - Updated QUICKSTART.md with RTT quick start
+  - New examples/rtt_examples.py with Python API examples
+  
+### Changed
+- Added `_rtt_started` flag to JLinkProgrammer for RTT state tracking
+- Enhanced JLinkProgrammer with RTT communication capabilities
+
 ## [0.1.1] - 2025-11-19
 
 ### Changed
@@ -65,5 +96,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Python >= 3.8
 - pylink-square >= 1.0.0
 
+[0.1.2]: https://github.com/RoboticsHardwareSolutions/rhs-flashkit/releases/tag/v0.1.2
 [0.1.1]: https://github.com/RoboticsHardwareSolutions/rhs-flashkit/releases/tag/v0.1.1
 [0.1.0]: https://github.com/RoboticsHardwareSolutions/rhs-flashkit/releases/tag/v0.1.0

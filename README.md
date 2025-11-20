@@ -8,9 +8,9 @@ CI/CD toolkit for flashing and testing embedded devices.
 - List and detect connected programmers
 - Automatic STM32 device detection (F1/F4/F7/G0 series)
 - Support for multiple firmware formats (.hex, .bin)
+- **Real-Time Transfer (RTT) support** - Connect to device RTT for real-time communication
 - Single unified command-line interface
 - Extensible architecture for supporting additional programmers
-- Future: RTT logging and device testing
 
 ## Installation
 
@@ -54,47 +54,101 @@ Get help:
 rhs-flash --help
 ```
 
+### RTT (Real-Time Transfer)
+
+Connect to JLink RTT for real-time communication with the target device:
+
+```bash
+# Connect with auto-detection and read for 10 seconds
+rhs-jlink-rtt
+
+# Specify JLink serial number
+rhs-jlink-rtt --serial 123456789
+
+# Specify MCU explicitly
+rhs-jlink-rtt --mcu STM32F765ZG
+
+# Read indefinitely until Ctrl+C
+rhs-jlink-rtt -t 0
+
+# Send message after connection
+rhs-jlink-rtt --msg "hello\n"
+
+# Send message after custom delay
+rhs-jlink-rtt --msg "test" --msg-timeout 2.0
+
+# Connect without resetting target
+rhs-jlink-rtt --no-reset
+
+# Verbose output
+rhs-jlink-rtt -v
+```
+
+Get RTT help:
+```bash
+rhs-jlink-rtt --help
+```
+
 ### Python API
 
+#### Flashing
+
 ```python
-from rhs_flashkit import (
-    flash_device_by_usb, 
-    auto_detect_device, 
-    get_connected_devices,
-    get_first_available_device,
-    find_device_by_serial
-)
-import pylink
+from rhs_flashkit import JLinkProgrammer
 
-# List all connected JLink devices
-devices = get_connected_devices('jlink')
-for device in devices:
-    print(f"JLink Serial: {device['serial']}")
+# Create programmer instance (auto-detect serial)
+prog = JLinkProgrammer()
 
-# Get first available device
-first_device = get_first_available_device('jlink')
-if first_device:
-    print(f"First device: {first_device['serial']}")
+# Or specify serial number
+prog = JLinkProgrammer(serial=123456789)
 
-# Find specific device
-device = find_device_by_serial(123456, 'jlink')
+# Flash firmware (auto-detect MCU)
+prog.flash("firmware.hex")
 
-# Flash with auto-detected programmer (first available JLink)
-flash_device_by_usb(fw_file="firmware.hex")
+# Flash with specific MCU
+prog.flash("firmware.hex", mcu="STM32F765ZG")
 
-# Flash with specific serial number
-flash_device_by_usb(serial=123456, fw_file="firmware.hex")
+# Flash without verification
+prog.flash("firmware.hex", do_verify=False)
 
-# Flash with specific MCU and programmer
-flash_device_by_usb(serial=123456, fw_file="firmware.hex", mcu="STM32F765ZG", programmer="jlink")
+# Flash without reset
+prog.flash("firmware.hex", reset=False)
+```
 
-# Or detect device manually
-jlink = pylink.JLink()
-jlink.open(serial_no=123456)
-jlink.set_tif(pylink.enums.JLinkInterfaces.SWD)
-mcu = auto_detect_device(jlink, verbose=True)
-print(f"Detected: {mcu}")
-jlink.close()
+#### RTT Communication
+
+```python
+from rhs_flashkit import JLinkProgrammer
+import time
+
+# Create programmer
+prog = JLinkProgrammer(serial=123456789)
+
+try:
+    # Connect to target
+    prog._connect_target(mcu="STM32F765ZG")
+    
+    # Reset device (optional)
+    prog.reset(halt=False)
+    time.sleep(0.5)
+    
+    # Start RTT
+    prog.start_rtt(delay=1.0)
+    
+    # Send data
+    prog.rtt_write(b"Hello, device!\n")
+    
+    # Read data
+    data = prog.rtt_read(max_bytes=4096)
+    if data:
+        print(data.decode('utf-8', errors='replace'))
+    
+    # Stop RTT
+    prog.stop_rtt()
+    
+finally:
+    # Disconnect
+    prog._disconnect_target()
 ```
 
 ## Development
@@ -121,10 +175,6 @@ pytest
 ## Roadmap
 
 ### Planned Features
-
-- **RTT Logging** - Real-Time Transfer logging support
-  - Read logs from devices during runtime
-  - Integration with testing framework
   
 - **Device Testing** - Automated testing capabilities
   - Run tests on connected devices
