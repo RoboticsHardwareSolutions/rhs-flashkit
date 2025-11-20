@@ -62,6 +62,9 @@ Examples:
     parser.add_argument('--msg-timeout', type=float, default=0.5,
                        help='Delay in seconds before sending message (default: 0.5)')
     
+    parser.add_argument('--msg-retries', type=int, default=10,
+                       help='Number of retries for sending message (default: 10)')
+    
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Enable verbose output')
     
@@ -121,10 +124,25 @@ Examples:
             
             # Convert escape sequences
             msg = args.msg.encode('utf-8').decode('unicode_escape').encode('utf-8')
-            bytes_written = prog.rtt_write(msg)
             
-            if args.verbose:
-                print(f"Wrote {bytes_written} bytes")
+            # Try to send with retries
+            max_retries = args.msg_retries
+            retry_delay = 1.0
+            bytes_written = 0
+            
+            for attempt in range(max_retries):
+                bytes_written = prog.rtt_write(msg)
+                if bytes_written > 0:
+                    if args.verbose:
+                        print(f"Wrote {bytes_written} bytes" + (f" (attempt {attempt + 1})" if attempt > 0 else ""))
+                    break
+                
+                if attempt < max_retries - 1:
+                    if args.verbose:
+                        print(f"Write failed (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+            else:
+                print(f"Warning: Failed to write message after {max_retries} attempts")
         
         # Read data
         start_time = time.time()
