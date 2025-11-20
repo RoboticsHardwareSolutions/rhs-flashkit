@@ -25,6 +25,9 @@ Examples:
   # Flash with specific JLink serial
   rhs-flash firmware.hex --serial 123456
   
+  # Flash via JLink IP address
+  rhs-flash firmware.hex --ip 192.168.1.100
+  
   # Flash with specific MCU
   rhs-flash firmware.hex --mcu STM32F765ZG
   
@@ -49,6 +52,13 @@ Examples:
     )
     
     parser.add_argument(
+        "--ip",
+        type=str,
+        default=None,
+        help="JLink IP address for network connection (e.g., 192.168.1.100)"
+    )
+    
+    parser.add_argument(
         "--mcu",
         type=str,
         default=None,
@@ -65,10 +75,15 @@ Examples:
     
     args = parser.parse_args()
     
+    # Validate that --serial and --ip are mutually exclusive
+    if args.serial and args.ip:
+        print("Error: Cannot specify both --serial and --ip")
+        sys.exit(1)
+    
     try:
         # Create programmer instance
         if args.programmer.lower() == PROGRAMMER_JLINK:
-            prog = JLinkProgrammer(serial=args.serial)
+            prog = JLinkProgrammer(serial=args.serial, ip_addr=args.ip)
         else:
             raise NotImplementedError(f"Programmer '{args.programmer}' is not yet implemented")
         
@@ -86,6 +101,8 @@ Examples:
         print(f"Programmer: {args.programmer}")
         if args.serial:
             print(f"Serial: {args.serial}")
+        if args.ip:
+            print(f"IP: {args.ip}")
         print(f"Firmware: {fw_file}")
         if args.mcu:
             print(f"MCU: {args.mcu}")

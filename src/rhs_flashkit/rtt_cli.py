@@ -24,6 +24,9 @@ Examples:
   # Specify JLink serial number
   rhs-jlink-rtt --serial 123456789
 
+  # Connect via IP address (MCU not needed)
+  rhs-jlink-rtt --ip 192.168.1.100
+
   # Specify MCU explicitly
   rhs-jlink-rtt --mcu STM32F765ZG
 
@@ -44,8 +47,11 @@ Examples:
     parser.add_argument('--serial', '-s', type=str, default=None,
                        help='JLink serial number (auto-detect if not provided)')
     
+    parser.add_argument('--ip', type=str, default=None,
+                       help='JLink IP address for network connection (e.g., 192.168.1.100)')
+    
     parser.add_argument('--mcu', '-m', type=str, default=None,
-                       help='MCU name (e.g., STM32F765ZG). Auto-detects if not provided.')
+                       help='MCU name (e.g., STM32F765ZG). Auto-detects if not provided. Not used with --ip.')
     
     parser.add_argument('--reset', dest='reset', action='store_true', default=True,
                        help='Reset target after connection (default: True)')
@@ -70,6 +76,11 @@ Examples:
     
     args = parser.parse_args()
     
+    # Validate that --serial and --ip are mutually exclusive
+    if args.serial and args.ip:
+        print("Error: Cannot specify both --serial and --ip")
+        sys.exit(1)
+    
     # Convert serial to int if provided
     serial = None
     if args.serial:
@@ -79,18 +90,22 @@ Examples:
             print(f"Error: Invalid serial number: {args.serial}")
             sys.exit(1)
     
+    ip_addr = args.ip
+    
     try:
         # Create programmer instance
         if args.verbose:
-            print(f"Creating JLink programmer (serial={serial})...")
+            print(f"Creating JLink programmer (serial={serial}, ip={ip_addr})...")
         
-        prog = JLinkProgrammer(serial=serial)
+        prog = JLinkProgrammer(serial=serial, ip_addr=ip_addr)
         
         # Connect to target
+        # When using IP, MCU is not specified (will use generic connection)
+        mcu = None if ip_addr else args.mcu
         if args.verbose:
-            print(f"Connecting to target (mcu={args.mcu})...")
+            print(f"Connecting to target (mcu={mcu})...")
         
-        if not prog._connect_target(mcu=args.mcu):
+        if not prog._connect_target(mcu=mcu):
             print("Error: Failed to connect to target")
             sys.exit(1)
         

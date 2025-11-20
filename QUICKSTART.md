@@ -57,6 +57,9 @@ rhs-jlink-rtt
 # Connect to specific device
 rhs-jlink-rtt --serial 123456789 --mcu STM32F765ZG
 
+# Connect via IP address
+rhs-jlink-rtt --ip 192.168.1.100
+
 # Read indefinitely
 rhs-jlink-rtt -t 0
 

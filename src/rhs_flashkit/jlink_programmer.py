@@ -22,20 +22,26 @@ pylink_logger.setLevel(logging.WARNING)
 class JLinkProgrammer(Programmer):
     """JLink programmer implementation."""
 
-    def __init__(self, serial: Optional[int] = None):
+    def __init__(self, serial: Optional[int] = None, ip_addr: Optional[str] = None):
         """
         Initialize JLink programmer.
         
         Args:
             serial: JLink serial number (optional, will auto-detect first available if not provided)
+            ip_addr: JLink IP address for network connection (e.g., "192.168.1.100")
         """
         super().__init__(serial)
         self._jlink = pylink.JLink()
         self._mcu = None
         self._rtt_started = False
+        self._ip_addr = ip_addr
         
+        # If IP address is provided, use it
+        if ip_addr:
+            self._serial = None
+            print(f"Using JLink at IP: {ip_addr}")
         # If no serial specified, find first available device
-        if serial is None:
+        elif serial is None:
             devices = self._get_available_devices()
             if not devices:
                 raise RuntimeError("No JLink devices found. Please connect a JLink.")
@@ -187,8 +193,15 @@ class JLinkProgrammer(Programmer):
                     self.logger.error(f"Device {self._serial} not found. Available: {available}")
                     return False
             
-            # Open JLink connection
-            if self._serial:
+            # Open JLink connection (with IP, serial, or first available)
+            if self._ip_addr:
+                self.logger.info(f"Opening JLink (ip={self._ip_addr})")
+                try:
+                    self._jlink.open(ip_addr=f"{self._ip_addr}:19020")
+                except Exception as e:
+                    self.logger.error(f"Failed to open JLink at IP {self._ip_addr}: {e}")
+                    return False
+            elif self._serial:
                 self.logger.info(f"Opening JLink with serial: {self._serial}")
                 try:
                     # Try opening without serial first, then set it

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2025-11-20
+
+### Added
+- **Network JLink Support** - Added ability to connect to JLink via IP address
+  - New `--ip` parameter in both `rhs-flash` and `rhs-jlink-rtt` CLI commands
+  - New `ip_addr` parameter in `JLinkProgrammer` constructor
+  - Connection format: `jlink.open(ip_addr="192.168.1.100:19020")`
+  - When using IP connection, MCU parameter is not required
+  - `--serial` and `--ip` are mutually exclusive parameters
+  - Full support for flashing and RTT communication over network
+
 ## [0.1.3] - 2025-11-20
 
 ### Fixed
@@ -105,6 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Python >= 3.8
 - pylink-square >= 1.0.0
 
+[0.1.4]: https://github.com/RoboticsHardwareSolutions/rhs-flashkit/releases/tag/v0.1.4
 [0.1.3]: https://github.com/RoboticsHardwareSolutions/rhs-flashkit/releases/tag/v0.1.3
 [0.1.2]: https://github.com/RoboticsHardwareSolutions/rhs-flashkit/releases/tag/v0.1.2
 [0.1.1]: https://github.com/RoboticsHardwareSolutions/rhs-flashkit/releases/tag/v0.1.1

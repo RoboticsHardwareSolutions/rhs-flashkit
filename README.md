@@ -65,6 +65,9 @@ rhs-jlink-rtt
 # Specify JLink serial number
 rhs-jlink-rtt --serial 123456789
 
+# Connect via IP address (no MCU needed)
+rhs-jlink-rtt --ip 192.168.1.100
+
 # Specify MCU explicitly
 rhs-jlink-rtt --mcu STM32F765ZG
 
