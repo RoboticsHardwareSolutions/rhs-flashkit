@@ -272,6 +272,7 @@ class JLinkProgrammer(Programmer):
                         return False
 
             self.logger.info(f"Connected to {self._mcu}")
+            print(f"Connected to target: {self._mcu}")
             return True
 
         except Exception as e:

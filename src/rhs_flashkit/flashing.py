@@ -98,16 +98,6 @@ Examples:
             print(f"To list connected devices, run: rhs-flash")
             sys.exit(1)
         
-        print(f"Programmer: {args.programmer}")
-        if args.serial:
-            print(f"Serial: {args.serial}")
-        if args.ip:
-            print(f"IP: {args.ip}")
-        print(f"Firmware: {fw_file}")
-        if args.mcu:
-            print(f"MCU: {args.mcu}")
-        print()
-        
         # Check if programmer is available
         if not prog.probe():
             raise RuntimeError(f"Programmer not found or not accessible")

@@ -54,26 +54,6 @@ Examples:
             sys.exit(1)
     
     try:
-        # Display configuration
-        print("Erase Configuration:")
-        print("=" * 50)
-        
-        if args.ip:
-            print(f"Programmer: JLink (IP: {args.ip})")
-        elif serial:
-            print(f"Programmer: JLink")
-            print(f"Serial: {serial}")
-        else:
-            print("Programmer: JLink (auto-detect)")
-        
-        if args.mcu:
-            print(f"MCU: {args.mcu}")
-        else:
-            print("MCU: Auto-detect")
-        
-        print("=" * 50)
-        print()
-        
         # Create programmer instance
         if args.verbose:
             print(f"Creating JLink programmer...")
