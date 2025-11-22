@@ -5,7 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.4] - 2025-11-20
+## [0.1.5] - 2025-11-22
+
+### Added
+- New `rhs-erase` command for erasing device flash memory
+- `erase()` method in Programmer base class and JLinkProgrammer implementation
+- Device erase CLI with support for auto-detection and manual configuration
+- Support for erasing via IP address connection
+
+### Fixed
+- JLink connection stability issues with segmentation faults
+- Improved device opening sequence to prevent crashes
+- Better error handling in RTT write operations
+- RTT message sending with configurable retry mechanism
+
+### Changed
+- RTT CLI now retries message sending with `--msg-retries` parameter (default: 10)
+- Improved logging output to reduce verbosity (set to WARNING level by default)
+- Better device detection output showing all available JLink devices with targets
+- Decoded product names from bytes to strings in device listing
+
+## [0.1.0] - 2025-11-10
 
 ### Added
 - **Network JLink Support** - Added ability to connect to JLink via IP address

@@ -306,6 +306,56 @@ class JLinkProgrammer(Programmer):
         except Exception as e:
             self.logger.error(f"Reset error: {e}")
 
+    def erase(self, mcu: Optional[str] = None) -> bool:
+        """
+        Erase the target device flash memory.
+        
+        Args:
+            mcu: MCU name (optional, will auto-detect if not provided)
+            
+        Returns:
+            True if erase was successful, False otherwise
+        """
+        try:
+            # Always ensure clean connection state
+            if self._jlink.opened():
+                self.logger.debug("Closing existing connection before erasing")
+                self._jlink.close()
+            
+            # Connect to target
+            if not self._connect_target(mcu=mcu):
+                self.logger.error("Failed to connect to device")
+                return False
+            
+            self.logger.info("Erasing device flash memory...")
+            
+            # Halt the core before erasing
+            try:
+                if not self._jlink.halted():
+                    self._jlink.halt()
+                    self.logger.debug("Core halted for erasing")
+            except Exception as e:
+                self.logger.warning(f"Could not halt core: {e}")
+            
+            # Erase flash
+            try:
+                self._jlink.erase()
+                self.logger.info("Erase successful")
+                return True
+            except Exception as e:
+                self.logger.error(f"Erase operation failed: {e}")
+                return False
+            
+        except Exception as e:
+            self.logger.error(f"Erase error: {e}")
+            return False
+        finally:
+            # Disconnect after erasing
+            try:
+                self._disconnect_target()
+            except Exception as e:
+                self.logger.warning(f"Disconnect error: {e}")
+
     @staticmethod
     def _get_available_devices() -> List[Dict[str, Any]]:
         """

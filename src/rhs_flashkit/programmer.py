@@ -120,6 +120,19 @@ class Programmer(ABC):
         pass
 
     @abstractmethod
+    def erase(self, mcu: Optional[str] = None) -> bool:
+        """
+        Erase the target device flash memory.
+        
+        Args:
+            mcu: MCU name (optional, will auto-detect if not provided)
+            
+        Returns:
+            True if erase was successful, False otherwise
+        """
+        pass
+
+    @abstractmethod
     def detect_target(self) -> Optional[str]:
         """
         Detect connected MCU device.

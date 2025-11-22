@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rhs-flashkit"
-version = "0.1.4"
+version = "0.1.5"
 description = "CI/CD toolkit for flashing and testing embedded devices"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -36,6 +36,7 @@ dev = [
 
 [project.scripts]
 rhs-flash = "rhs_flashkit.flashing:main"
+rhs-erase = "rhs_flashkit.erase_cli:main"
 rhs-jlink-rtt = "rhs_flashkit.rtt_cli:main"
 
 [project.urls]
